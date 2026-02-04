@@ -2,7 +2,7 @@
  * @name open in mpv
  * @author binarynoise
  * @description Use the context menu to open a video in mpv.
- * @version 2.3.0
+ * @version 2.4.0
  * @source https://github.com/binarynoise/open-in-mpv
  * @donate https://paypal.me/binarynoise
  */
@@ -24,13 +24,35 @@ function createMpvSchemeURI(url) {
 }
 
 function contextMenuPatch(tree, context) {
-    const href = context.target.href || context.target.parentNode.href
+    // console.debug(tree, context)
+    let href = [context.target.href, context.target.parentNode?.href].find(e => e && !/^https:\/\/(\w+\.)?discord.com\//.test(e))
+
+    if (href === undefined) {
+        const attachments = context.message.attachments
+        if (attachments) {
+            const filtered = attachments.map(e => e.url).filter(e => e);
+            if (filtered && filtered.length === 1) {
+                href = filtered[0]
+            }
+        }
+    }
+    if (href === undefined) {
+        const embeds = context.message.embeds
+        if (embeds) {
+            const filtered = embeds.map(e => e.video || e.image || e).filter(e => e).map(e => e.contentType !== "text/html" && e.url).filter(e => e);
+            const unique = filtered.filter((value, index, array) => array.indexOf(value) === index)
+            if (unique && unique.length === 1) {
+                href = unique[0]
+            }
+        }
+    }
 
     if (href !== undefined) {
-        tree.props.children.props.children.push(BdApi.ContextMenu.buildItem({
+        const children = tree.props.children?.props?.children || tree.props.children
+        children.push(BdApi.ContextMenu.buildItem({
             type: "separator",
         }))
-        tree.props.children.props.children.push(BdApi.ContextMenu.buildItem({
+        children.push(BdApi.ContextMenu.buildItem({
             type: "text", label: "open in mpv", action: () => {
                 console.log("open-in-mpv: link is " + href);
 
@@ -38,10 +60,10 @@ function contextMenuPatch(tree, context) {
                     const newWindow = window.open(createMpvSchemeURI(href), "_blank", "noopener noreferrer");
 
                     if (newWindow === null) { // is null because opens in external application
-                        BdApi.UI.showToast("" + href + " opened in mpv.", { type: "success" });
+                        BdApi.UI.showToast(`${href} opened in mpv.`, { type: "success" });
                         console.log("open-in-mpv: success");
                     } else {
-                        BdApi.UI.showToast("" + href + " failed to open in mpv.", { type: "error" });
+                        BdApi.UI.showToast(`${href} failed to open in mpv.`, { type: "error" });
                         console.log(`open-in-mpv: failed to open ${createMpvSchemeURI(href)} in mpv.`);
                     }
                 } else {
